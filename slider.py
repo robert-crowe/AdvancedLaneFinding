@@ -12,4 +12,5 @@ def moving_average(img, width=32):
     cols = np.mean(img[:,:], axis=0)
     Mavg = np.cumsum(cols, dtype=float)
     Mavg[width:] = Mavg[width:] - Mavg[:-width]
-    return (Mavg[width - 1:] / width) / np.max(cols)
+    Mavg = (Mavg[width - 1:] / width) / np.max(cols)
+    return Mavg / np.max(Mavg) # scale to 0.0 - 1.0

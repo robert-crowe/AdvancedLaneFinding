@@ -15,10 +15,10 @@ from enhancer import enhance_lines
 # EVERY TIME WE ADJUST.
 #####################################################################
 
-
+print('Import done')
 
 # Read in an image
-fname = 'test1.jpg'
+fname = 'test6.jpg'
 
 # Reload the pickle
 dist_unpickled = pickle.load(open("camera_pickle.p", "rb"))
@@ -37,12 +37,13 @@ cv2.imshow('Birdseye view of {}'.format(fname), birdseye)
 print('birdseye shape: {}'.format(birdseye.shape))
 
 # Enhance the lines
-birdseye = enhance_lines(birdseye, HLS_thresh=[175, 250], Gray_thresh=[13, 150])
+# birdseye = enhance_lines(birdseye, HLS_thresh=[175, 250])
+birdseye = enhance_lines(birdseye, HLS_thresh=[200, 255])
 cv2.imshow('Enhanced {}'.format(fname), birdseye)
 
 # Grab the lower half
 halfsies = half_img(birdseye)
-cv2.imshow('Half of {}'.format(fname), halfsies)
+cv2.imshow('Lower Half of {}'.format(fname), halfsies)
 # cv2.imwrite('halfsies.jpg', halfsies)
 print('halfsies shape: {}'.format(halfsies.shape))
 
@@ -52,21 +53,38 @@ plt.plot(histogram)
 plt.show()
 
 # Get the moving average
-avg_width = 100
+# avg_width = 100
+# avg_width = 50
+avg_width = 25
 Mavg = moving_average(halfsies, width=avg_width)
 
-# Find the strongest peaks in the moving average
+# Find the nicest peaks in the moving average
 typical_line_maxWpx = 50
 typical_lane_maxWpx = 750
 peak_thresh = 0.5
 step = 0.05
 num_peaks = 0
-while num_peaks < 2: 
+found_twins = True
+nice_peaks = []
+while found_twins and len(nice_peaks) is 0: 
     peaks = find_peaks_cwt(Mavg > peak_thresh, [typical_line_maxWpx], max_distances=[typical_lane_maxWpx])
     num_peaks = len(peaks)
     peak_thresh -= step
+    if peak_thresh < 0 and num_peaks < 2:
+        found_twins = False
+    elif num_peaks > 1:
+        for p1 in peaks:  # did we find a pair about the right distance apart to be a lane?
+            for p2 in peaks:
+                dist = np.absolute(p2 - p1)
+                if dist > 600 and dist < 800:
+                    nice_peaks = [p1, p2]
+                    break
+            if len(nice_peaks) > 0:
+                break
 
-print('Peaks: {}'.format(peaks))
+both_lines = found_twins and len(nice_peaks) is 2
+
+print('Peaks: {}, Nice_Peaks: {}, Both_lines: {}'.format(peaks, nice_peaks, both_lines))
 
 plt.plot(Mavg)
 plt.show()
