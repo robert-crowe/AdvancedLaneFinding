@@ -3,9 +3,11 @@ import numpy as np
 def histo(img):
     return np.sum(img, axis=0)
 
-def half_img(img):
-    half_height = np.uint16(img.shape[0]/2)
-    return img[half_height:,:]
+def half_img(img, window_height):
+    half_height = np.uint16(window_height/2)
+    end = img.shape[0]
+    start = end - half_height
+    return img[start:end,:,:]
 
 def moving_average(img, width=32):
     # adapted from http://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
