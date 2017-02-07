@@ -62,7 +62,7 @@ def get_enhanced_birdseye(image):
     Returns:
         birdseye (image): The enhanced birdseye view
     """
-    cv2.imshow('Original', image)
+    # cv2.imshow('Original', image)
 
     # Enhance the lines
     # birdseye = enhance_lines(birdseye, HLS_thresh=[175, 250])
@@ -95,6 +95,25 @@ def correct_image(img):
     # Correct the camera
     return cv2.undistort(img, mtx, dist, None, mtx)
 
+def apply_CLAHE(img):
+    """ Apply CLAHE to normalize image brightness and contrast
+    See: https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_histograms/py_histogram_equalization/py_histogram_equalization.html
+
+    Args:
+        img (RGB image): The image to correct 
+    
+    Returns:
+        img (RGB image): The corrected image
+    """
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    R = clahe.apply(img[:,:,0])
+    G = clahe.apply(img[:,:,1])
+    B = clahe.apply(img[:,:,2])
+    img[:,:,0] = R
+    img[:,:,1] = G
+    img[:,:,2] = B
+    return img
+
 def find_lines(img):
     """ Starting from the moving average from the enhanced birdseye, try to find two lane lines. 
 
@@ -121,18 +140,21 @@ def find_lines(img):
     while found_twins and len(nice_peaks) is 0: 
         peaks = find_peaks_cwt(Mavg > peak_thresh, [typical_line_maxWpx], max_distances=[typical_lane_maxWpx])
         num_peaks = len(peaks)
-        peak_thresh -= step
-        if peak_thresh < 0 and num_peaks < 2:
-            found_twins = False
-        elif num_peaks > 1:
+        peak_thresh = peak_thresh - step
+        if num_peaks > 1:
             for p1 in peaks:  # did we find a pair about the right distance apart to be a lane?
                 for p2 in peaks:
                     dist = np.absolute(p2 - p1)
-                    if dist > 600 and dist < 800:
+                    if dist > 500 and dist < 900:
                         nice_peaks = [p1, p2]
                         break
-                if len(nice_peaks) > 0:
-                    break
+                    elif peak_thresh < 0: # give up
+                        found_twins = False
+                        break # for
+                if len(nice_peaks) > 0 or peak_thresh < 0:
+                    break # for
+            if len(nice_peaks) > 0 or peak_thresh < 0:
+                break # while
 
     both_lines = found_twins and len(nice_peaks) is 2
     

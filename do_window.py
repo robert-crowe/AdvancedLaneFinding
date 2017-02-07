@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from slider import half_img, histo
-from enhancer import enhance_lines, find_lines, get_enhanced_birdseye, correct_image, transform2birdseye
+from enhancer import enhance_lines, find_lines, get_enhanced_birdseye, correct_image, transform2birdseye, apply_CLAHE
 
 #####################################################################
 # NOTE TO ME:
@@ -14,11 +14,16 @@ from enhancer import enhance_lines, find_lines, get_enhanced_birdseye, correct_i
 print('Import done')
 
 # Read in an image
-fname = 'test6.jpg'
+fname = 'test1.jpg'
 image = cv2.imread('test_images/{}'.format(fname))
+cv2.imshow('Original', image)
 
 # Correct for camera distortion
 image = correct_image(image)
+
+# normalize brightness and contrast
+image = apply_CLAHE(image)
+cv2.imshow('CLAHE', image)
 
 # Transform it to birdseye
 image = transform2birdseye(image)
