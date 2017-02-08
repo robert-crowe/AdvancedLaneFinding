@@ -130,15 +130,17 @@ def find_lines(img):
     Mavg = moving_average(img, width=avg_width)
 
     # Find the nicest peaks in the moving average
-    typical_line_maxWpx = 50
-    typical_lane_maxWpx = 750
+    range_line_widths = [100]
+    # range_line_widths = [90, 100, 110]
+    max_dist = [800]
+    # max_dist = [700, 800, 900]
     peak_thresh = 0.5
     step = 0.05
     num_peaks = 0
     found_twins = True
     nice_peaks = []
-    while found_twins and len(nice_peaks) is 0: 
-        peaks = find_peaks_cwt(Mavg > peak_thresh, [typical_line_maxWpx], max_distances=[typical_lane_maxWpx])
+    while found_twins and len(nice_peaks) is 0 and peak_thresh > 0: 
+        peaks = find_peaks_cwt(Mavg > peak_thresh, range_line_widths, max_distances=max_dist)
         num_peaks = len(peaks)
         peak_thresh = peak_thresh - step
         if num_peaks > 1:
