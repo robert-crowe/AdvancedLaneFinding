@@ -125,9 +125,14 @@ def find_lines(img):
         nice_peaks (list int): The X coordinates of the best two peaks found
         both_lines (bool): Did we find two good lines?
     """
+    # some parameters
+    avg_line_width_px = 25
+    typical_lane_width_px = 750
+    center_left_line_area = 263
+    center_right_line_area = 1017
+
     # Get the moving average
-    avg_width = 25
-    Mavg = moving_average(img, width=avg_width)
+    Mavg = moving_average(img, width=avg_line_width_px)
 
     # Find the nicest peaks in the moving average
     range_line_widths = [100]
@@ -137,30 +142,62 @@ def find_lines(img):
     peak_thresh = 0.5
     step = 0.05
     num_peaks = 0
-    found_twins = True
     nice_peaks = []
-    while found_twins and len(nice_peaks) is 0 and peak_thresh > 0: 
+    max_from_typical = 100
+    single_lefts = []
+    single_rights = []
+    while len(nice_peaks) is 0 and peak_thresh > 0: 
         peaks = find_peaks_cwt(Mavg > peak_thresh, range_line_widths, max_distances=max_dist)
         num_peaks = len(peaks)
         peak_thresh = peak_thresh - step
-        if num_peaks > 1:
-            for p1 in peaks:  # did we find a pair about the right distance apart to be a lane?
-                for p2 in peaks:
-                    dist = np.absolute(p2 - p1)
-                    if dist > 500 and dist < 900:
-                        nice_peaks = [p1, p2]
-                        break
-                    elif peak_thresh < 0: # give up
-                        found_twins = False
-                        break # for
-                if len(nice_peaks) > 0 or peak_thresh < 0:
-                    break # for
-            if len(nice_peaks) > 0 or peak_thresh < 0:
+        # SHOULD WE ONLY USE EXTRAPOLATED WHEN WE CAN'T FIND TWO LINES?  EXPERIMENT
+        if num_peaks is 1: # only found one line, extrapolate the other
+            if peaks[0] < 640: # left line 
+                single_lefts.append(peaks[0])
+            else: # right line
+                single_rights.append(peaks[0])
+        elif num_peaks > 1:
+            left_peaks = list(filter((lambda x: x < 640), peaks))
+            right_peaks = list(filter((lambda x: x >= 640), peaks))
+            nice_peaks = find_best_pair(left_peaks, right_peaks, typical_lane_width_px, max_from_typical)
+            if len(nice_peaks) > 0:
                 break # while
-
-    both_lines = found_twins and len(nice_peaks) is 2
+    
+    both_lines = len(nice_peaks) is 2
+    if not both_lines: # need to work with single peaks
+        if len(single_lefts) > 0 and len(single_rights) > 0:  # we have some of each
+            nice_peaks = find_best_pair(single_lefts, single_rights, typical_lane_width_px, max_from_typical)
+            both_lines = True
+        elif len(single_lefts) > 0: # only have left lines
+            # find the one closest to the center of the left area and extrapolate right
+            left = find_closest_peak(single_lefts, center_left_line_area)
+            nice_peaks = [left, left + typical_lane_width_px]
+        elif len(single_rights) > 0: # only have right lines
+            # find the one closest to the center of the right area and extrapolate left
+            right = find_closest_peak(single_rights, center_right_line_area)
+            nice_peaks = [right - typical_lane_width_px, right]
     
     plt.plot(Mavg) # DEBUG
     plt.show()
-
     return peaks, nice_peaks, both_lines
+
+def find_best_pair(left_peaks, right_peaks, typical_lane_width_px, max_from_typical):
+    nice_peaks, pairs_list = [], []
+    for left in left_peaks:  # did we find a pair about the right distance apart to be a lane?
+        for right in right_peaks:
+            dist = right - left
+            delta = abs(typical_lane_width_px - dist)
+            pairs_list.append((delta, (left, right)))
+    ordered_pairs = sorted(pairs_list, key=lambda pair: pair[0])
+    closest_typical = ordered_pairs[0]
+    if closest_typical[0] < max_from_typical:
+        nice_peaks = closest_typical[1]
+    return nice_peaks
+
+def find_closest_peak(peaks, center_px):
+    peaks_list = []
+    for peak in peaks:
+        dist = abs(center_px - peak)
+        peaks_list.append((dist, peak))
+    ordered_peaks = sorted(peaks_list, key=lambda peak: peak[0])
+    return ordered_peaks[0]

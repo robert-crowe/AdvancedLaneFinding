@@ -16,8 +16,10 @@ from perspective import Perspective
 print('Import done')
 
 """
-straight1, 2: Good
+straight_lines1, straight_lines2: Good
+    Very good
 test1: Shifted to left
+    still too wide to the left, but better
 test2: Close, slightly to the left
 test3: Good
 test4: White good, yellow a bit left
@@ -35,7 +37,7 @@ harder5: Yellow close, white off to right
 
 
 # Read in an image
-fname = 'harder5.jpg'
+fname = 'test1.jpg'
 original = cv2.imread('test_images/{}'.format(fname))
 cv2.imshow('Original', original)
 
@@ -44,7 +46,6 @@ corrected = correct_image(original)
 
 # normalize brightness and contrast
 image = apply_CLAHE(corrected)
-cv2.imshow('CLAHE', image)
 
 # Transform it to birdseye
 image = transform2birdseye(image)
@@ -53,7 +54,7 @@ done_looking = False
 window_height = image.shape[0]
 min_height = 50
 window = image
-last_good = []
+good_list = []
 while not done_looking and window_height > min_height:
     # get the enhanced birdseye view
     window = get_enhanced_birdseye(window)
@@ -68,13 +69,15 @@ while not done_looking and window_height > min_height:
 
     if both_lines:
         print('Peaks: {}, Nice_Peaks: {}, Both_lines: {}'.format(peaks, nice_peaks, both_lines))
-        last_good = nice_peaks
+        good_list.append(nice_peaks)
         # Grab the lower half
         window = half_img(image, window_height)
         window_height = window.shape[0]
     else:
         done_looking = True
 
+good_list = np.reshape(good_list, (len(good_list), 2))
+last_good = [np.mean(good_list[:, 0]), np.mean(good_list[:, 1])]
 print('Lines start: {}'.format(last_good))
 
 # Let's suppose, as in the previous example, you have a warped binary 
