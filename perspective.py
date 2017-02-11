@@ -19,7 +19,10 @@ class Perspective:
         """
         # src = np.float32([(624,432), (654,432), (1039,674), (269,674)])
         # src = np.float32([(522,502), (766,502), (1039,674), (269,674)])
-        return np.float32([(601,445), (673,445), (1022,673), (261,673)])
+        # src = np.float32([(601,445), (673,445), (1022,673), (261,673)])
+        # src = np.float32([[0, 720], [1280, 720], [775, 480], [507, 480]])
+        src = np.float32([[0, 720], [1280, 720], [703, 448], [576, 448]])
+        return src
 
     def getDestination(self, img_size):
         """ Get destination registration points
@@ -30,9 +33,12 @@ class Perspective:
         Returns:
             (list of 2-tuples, float32): The list of registration points, clockwise from upper left
         """
-        return np.float32([[self.offset, 0], [img_size[0]-self.offset, 0], 
-            [img_size[0]-self.offset, img_size[1]], [self.offset, img_size[1]]])
+        # dst = np.float32([[self.offset, 0], [img_size[0]-self.offset, 0], 
+        #     [img_size[0]-self.offset, img_size[1]], [self.offset, img_size[1]]])
 
+        dst = np.float32([[ 0, 720], [ 1280, 720], [ 1280, 0], [0, 0]])
+        return dst
+        
     def to_birdseye(self, img):
         """ Transforms image from center camera to birdseye view
 
@@ -57,7 +63,7 @@ class Perspective:
         Tmat = cv2.getPerspectiveTransform(src, dst)
 
         # Warp the image using OpenCV warpPerspective()
-        warped = cv2.warpPerspective(img, Tmat, img_size)
+        warped = cv2.warpPerspective(img, Tmat, img_size, flags=cv2.INTER_LINEAR)
         
         return warped
 

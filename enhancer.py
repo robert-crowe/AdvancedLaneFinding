@@ -32,13 +32,13 @@ def enhance_lines(img, HLS_thresh=(170, 255)):
     low  = np.array([90, 85, 0])
     high = np.array([101, 255, 255])
     yellows = cv2.inRange(hsv, low, high)
-    cv2.imshow('Yellows', yellows)
+    # cv2.imshow('Yellows', yellows)
 
     # Mask the whites
     low  = np.array([0, 0, 200])
     high = np.array([255, 25, 255])
     whites = cv2.inRange(hsv, low, high)
-    cv2.imshow('Whites', whites)
+    # cv2.imshow('Whites', whites)
 
     # Convert to HLS and threshold S
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -46,28 +46,25 @@ def enhance_lines(img, HLS_thresh=(170, 255)):
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= HLS_thresh[0]) & (s_channel < HLS_thresh[1])] = 1
     s_binary = np.asarray(s_binary * 255, dtype=np.uint8)
-    cv2.imshow('s_binary', s_binary)
+    # cv2.imshow('s_binary', s_binary)
 
     # Combine the two binary thresholds
     combined_binary = cv2.bitwise_or(yellows, cv2.bitwise_or(whites, s_binary))
     
     return combined_binary
 
-def get_enhanced_birdseye(image):
-    """ Transform to a birdseye view and enhance to find the lines
+def get_enhanced(image):
+    """ Enhance to find the lines
 
     Args:
         image (image): The original image from the camera
     
     Returns:
-        birdseye (image): The enhanced birdseye view
+        image (image): The enhanced image
     """
-    # cv2.imshow('Original', image)
-
     # Enhance the lines
-    # birdseye = enhance_lines(birdseye, HLS_thresh=[175, 250])
     image = enhance_lines(image, HLS_thresh=[200, 255])
-    cv2.imshow('Enhanced', image)
+    # cv2.imshow('Enhanced', image)
     return image
 
 def transform2birdseye(image):
@@ -113,91 +110,3 @@ def apply_CLAHE(img):
     img[:,:,1] = G
     img[:,:,2] = B
     return img
-
-def find_lines(img):
-    """ Starting from the moving average from the enhanced birdseye, try to find two lane lines. 
-
-    Args:
-        img (image): The enhanced birdseye
-    
-    Returns:
-        peaks (list int): The complete list of peaks found in the final pass
-        nice_peaks (list int): The X coordinates of the best two peaks found
-        both_lines (bool): Did we find two good lines?
-    """
-    # some parameters
-    avg_line_width_px = 25
-    typical_lane_width_px = 750
-    center_left_line_area = 263
-    center_right_line_area = 1017
-
-    # Get the moving average
-    Mavg = moving_average(img, width=avg_line_width_px)
-
-    # Find the nicest peaks in the moving average
-    range_line_widths = [100]
-    # range_line_widths = [90, 100, 110]
-    max_dist = [800]
-    # max_dist = [700, 800, 900]
-    peak_thresh = 0.5
-    step = 0.05
-    num_peaks = 0
-    nice_peaks = []
-    max_from_typical = 100
-    single_lefts = []
-    single_rights = []
-    while len(nice_peaks) is 0 and peak_thresh > 0: 
-        peaks = find_peaks_cwt(Mavg > peak_thresh, range_line_widths, max_distances=max_dist)
-        num_peaks = len(peaks)
-        peak_thresh = peak_thresh - step
-        # SHOULD WE ONLY USE EXTRAPOLATED WHEN WE CAN'T FIND TWO LINES?  EXPERIMENT
-        if num_peaks is 1: # only found one line, extrapolate the other
-            if peaks[0] < 640: # left line 
-                single_lefts.append(peaks[0])
-            else: # right line
-                single_rights.append(peaks[0])
-        elif num_peaks > 1:
-            left_peaks = list(filter((lambda x: x < 640), peaks))
-            right_peaks = list(filter((lambda x: x >= 640), peaks))
-            nice_peaks = find_best_pair(left_peaks, right_peaks, typical_lane_width_px, max_from_typical)
-            if len(nice_peaks) > 0:
-                break # while
-    
-    both_lines = len(nice_peaks) is 2
-    if not both_lines: # need to work with single peaks
-        if len(single_lefts) > 0 and len(single_rights) > 0:  # we have some of each
-            nice_peaks = find_best_pair(single_lefts, single_rights, typical_lane_width_px, max_from_typical)
-            both_lines = True
-        elif len(single_lefts) > 0: # only have left lines
-            # find the one closest to the center of the left area and extrapolate right
-            left = find_closest_peak(single_lefts, center_left_line_area)
-            nice_peaks = [left, left + typical_lane_width_px]
-        elif len(single_rights) > 0: # only have right lines
-            # find the one closest to the center of the right area and extrapolate left
-            right = find_closest_peak(single_rights, center_right_line_area)
-            nice_peaks = [right - typical_lane_width_px, right]
-    
-    plt.plot(Mavg) # DEBUG
-    plt.show()
-    return peaks, nice_peaks, both_lines
-
-def find_best_pair(left_peaks, right_peaks, typical_lane_width_px, max_from_typical):
-    nice_peaks, pairs_list = [], []
-    for left in left_peaks:  # did we find a pair about the right distance apart to be a lane?
-        for right in right_peaks:
-            dist = right - left
-            delta = abs(typical_lane_width_px - dist)
-            pairs_list.append((delta, (left, right)))
-    ordered_pairs = sorted(pairs_list, key=lambda pair: pair[0])
-    closest_typical = ordered_pairs[0]
-    if closest_typical[0] < max_from_typical:
-        nice_peaks = closest_typical[1]
-    return nice_peaks
-
-def find_closest_peak(peaks, center_px):
-    peaks_list = []
-    for peak in peaks:
-        dist = abs(center_px - peak)
-        peaks_list.append((dist, peak))
-    ordered_peaks = sorted(peaks_list, key=lambda peak: peak[0])
-    return ordered_peaks[0]

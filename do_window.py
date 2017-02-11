@@ -1,84 +1,109 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from slider import half_img, histo
-from enhancer import enhance_lines, find_lines, get_enhanced_birdseye, correct_image, transform2birdseye, apply_CLAHE
+from slider import half_img, histo, make_box, find_box_peak
+from enhancer import enhance_lines, get_enhanced, correct_image, transform2birdseye, apply_CLAHE
 from perspective import Perspective
-
-#####################################################################
-# NOTE TO ME:
-# IT LOOKS LIKE IT MIGHT BE A GOOD IDEA TO ADJUST THE OFFSET
-# BASED ON THE CURVE.  THAN MEANS WE HAVE A DIFFERENT MATRIX
-# EVERY TIME WE ADJUST.
-# THE STEERING ANGLE MIGHT ALSO BE A CLUE TO USE TO ADJUST THE OFFSET
-#####################################################################
+from line_start import find_line_starts
 
 print('Import done')
 
 """
-straight_lines1, straight_lines2: Good
-    Very good
-test1: Shifted to left
-    still too wide to the left, but better
-test2: Close, slightly to the left
-test3: Good
-test4: White good, yellow a bit left
-test5: White good, yellow a bit right
-test6: Pretty close, not perfect
-challenge1: Pretty close, not perfect
-challenge2: Didn't find lines ---------------
-challenge3: Pretty close, not perfect
-harder1: Pretty dang close, not perfect
-harder2: Pretty dang close, not perfect
-harder3: Both lines off to right, but found two lines!
-harder4: Yellow good, white off to right
-harder5: Yellow close, white off to right
+straight_lines1, straight_lines2: Close, but right a little inside
+test1: Close, but a little narrow
+test2: Very close
+test3: Very close
+test4: Very close
+test5: White good, yellow a ways inside
+test6: Vey nice
+challenge1: Not too bad, a bit to the right
+challenge2: Vey nice
+challenge3: Not too shabby
+harder1: Not bad
+harder2: Not bad
+harder3: Not bad, a little to the left
+harder4: Not bad, a little to the right
+harder5: Not bad
 """
 
-
 # Read in an image
-fname = 'test1.jpg'
+fname = 'test2.jpg'
 original = cv2.imread('test_images/{}'.format(fname))
 cv2.imshow('Original', original)
 
 # Correct for camera distortion
 corrected = correct_image(original)
+# cv2.imwrite('corrected.jpg', corrected)
 
 # normalize brightness and contrast
 image = apply_CLAHE(corrected)
 
 # Transform it to birdseye
 image = transform2birdseye(image)
+# cv2.imwrite('birdseye.jpg', image)
 
-done_looking = False
-window_height = image.shape[0]
-min_height = 50
-window = image
-good_list = []
-while not done_looking and window_height > min_height:
-    # get the enhanced birdseye view
-    window = get_enhanced_birdseye(window)
-
-    # What does the histogram look like?
-    histogram = histo(window)
-    plt.plot(histogram)
-    plt.show()
-
-    # Try to find two good lines
-    peaks, nice_peaks, both_lines = find_lines(window)
-
-    if both_lines:
-        print('Peaks: {}, Nice_Peaks: {}, Both_lines: {}'.format(peaks, nice_peaks, both_lines))
-        good_list.append(nice_peaks)
-        # Grab the lower half
-        window = half_img(image, window_height)
-        window_height = window.shape[0]
-    else:
-        done_looking = True
-
-good_list = np.reshape(good_list, (len(good_list), 2))
-last_good = [np.mean(good_list[:, 0]), np.mean(good_list[:, 1])]
+# find the beginning of the lines
+enhanced, last_good = find_line_starts(image)
+# cv2.imwrite('enhanced.jpg', enhanced)
+cv2.imshow('Enhanced back', enhanced)
 print('Lines start: {}'.format(last_good))
+left_start = last_good[0]
+right_start = last_good[1]
+walk_Y = 36
+half_walk = walk_Y // 2
+box_width = 200
+box_half = box_width // 2
+curY = enhanced.shape[0]
+minX = box_half # from the center of the box, don't go past the left edge of the image
+maxX = enhanced.shape[1] - minX # same, right edge
+curLeftX = max(left_start, minX) # don't start out already past the left edge
+curRightX = min(right_start, maxX) # same, right edge
+left_pts = []
+right_pts = []
+leftDeltaSteps = []
+rightDeltaSteps = []
+
+# Walk up the lines
+while curY > walk_Y:
+    left_box = make_box(enhanced, walk_Y, box_width, curY, curLeftX)
+    right_box = make_box(enhanced, walk_Y, box_width, curY, curRightX)
+    cv2.imshow('left_box', left_box)
+    cv2.imshow('right_box', right_box)
+
+    found_left = find_box_peak(left_box) # peak relative to box
+    if found_left is not None: # did we find a peak?
+        nextLeftX = max(found_left + curLeftX - box_half, minX) # don't go past the left border
+        leftDeltaSteps.append(curLeftX - nextLeftX) # keep track of the deltas for averaging steps
+        curLeftX = nextLeftX
+    elif len(leftDeltaSteps) > 0:
+        # take a step in the average direction - we can lose dashed lines if we just go straight up
+        curLeftX = max(curLeftX - np.mean(leftDeltaSteps), minX)
+
+    found_right = find_box_peak(right_box)
+    if found_right is not None:
+        nextRightX = min(found_right + curRightX - box_half, maxX)
+        rightDeltaSteps.append(curRightX - nextRightX)
+        curRightX = nextRightX
+    elif len(rightDeltaSteps) > 0:
+        curRightX = min(curRightX - np.mean(rightDeltaSteps), maxX)
+    
+    if curLeftX > minX:
+        left_pts.append([curLeftX, curY + half_walk]) # Y in middle, not top edge of box
+    else:
+        # if the box is up against the left border, we still want to follow the line
+        left_pts.append([found_left, curY + half_walk])
+    
+    if curRightX < maxX:
+        right_pts.append([curRightX, curY + half_walk])
+    else:
+        right_pts.append([found_right, curY + half_walk])
+
+    curY = curY - walk_Y
+    cv2.waitKey(0)  # DEBUG
+
+# This is where you need to fit the curvature
+
+
 
 # Let's suppose, as in the previous example, you have a warped binary 
 # image called warped, and you have fit the lines with a polynomial and 
