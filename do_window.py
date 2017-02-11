@@ -56,15 +56,15 @@ box_half = box_width // 2
 curY = enhanced.shape[0]
 minX = box_half # from the center of the box, don't go past the left edge of the image
 maxX = enhanced.shape[1] - minX # same, right edge
-curLeftX = max(left_start, minX) # don't start out already past the left edge
-curRightX = min(right_start, maxX) # same, right edge
+curLeftX = int(max(left_start, minX)) # don't start out already past the left edge
+curRightX = int(min(right_start, maxX)) # same, right edge
 left_pts = []
 right_pts = []
 leftDeltaSteps = []
 rightDeltaSteps = []
 
 # Walk up the lines
-while curY > walk_Y:
+while curY >= walk_Y:
     left_box = make_box(enhanced, walk_Y, box_width, curY, curLeftX)
     right_box = make_box(enhanced, walk_Y, box_width, curY, curRightX)
     cv2.imshow('left_box', left_box)
@@ -72,31 +72,35 @@ while curY > walk_Y:
 
     found_left = find_box_peak(left_box) # peak relative to box
     if found_left is not None: # did we find a peak?
-        nextLeftX = max(found_left + curLeftX - box_half, minX) # don't go past the left border
+        nextLeftX = int(max(found_left + curLeftX - box_half, minX)) # don't go past the left border
         leftDeltaSteps.append(curLeftX - nextLeftX) # keep track of the deltas for averaging steps
         curLeftX = nextLeftX
     elif len(leftDeltaSteps) > 0:
         # take a step in the average direction - we can lose dashed lines if we just go straight up
-        curLeftX = max(curLeftX - np.mean(leftDeltaSteps), minX)
+        curLeftX = int(max(curLeftX - np.mean(leftDeltaSteps), minX))
 
     found_right = find_box_peak(right_box)
     if found_right is not None:
-        nextRightX = min(found_right + curRightX - box_half, maxX)
+        nextRightX = int(min(found_right + curRightX - box_half, maxX))
         rightDeltaSteps.append(curRightX - nextRightX)
         curRightX = nextRightX
     elif len(rightDeltaSteps) > 0:
-        curRightX = min(curRightX - np.mean(rightDeltaSteps), maxX)
+        curRightX = int(min(curRightX - np.mean(rightDeltaSteps), maxX))
     
     if curLeftX > minX:
         left_pts.append([curLeftX, curY + half_walk]) # Y in middle, not top edge of box
-    else:
+    elif found_left is not None:
         # if the box is up against the left border, we still want to follow the line
-        left_pts.append([found_left, curY + half_walk])
+        left_pts.append([int(found_left), curY + half_walk])
+    else:
+        left_pts.append([curLeftX, curY + half_walk]) # Past minX, and curLeftX is already int
     
     if curRightX < maxX:
         right_pts.append([curRightX, curY + half_walk])
+    elif found_right is not None:
+        right_pts.append([int(found_right), curY + half_walk])
     else:
-        right_pts.append([found_right, curY + half_walk])
+        right_pts.append([curRightX, curY + half_walk])
 
     curY = curY - walk_Y
     cv2.waitKey(0)  # DEBUG
