@@ -1,10 +1,11 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from slider import half_img, histo, make_box, find_box_peak
+from slider import half_img, histo, make_box, find_box_peak, walk_lines
 from enhancer import enhance_lines, get_enhanced, correct_image, transform2birdseye, apply_CLAHE
 from perspective import Perspective
 from line_start import find_line_starts
+from scipy.interpolate import UnivariateSpline
 
 print('Import done')
 
@@ -27,117 +28,72 @@ harder5: Not bad
 """
 
 # Read in an image
-fname = 'test2.jpg'
+fname = 'challenge3.jpg'
 original = cv2.imread('test_images/{}'.format(fname))
-cv2.imshow('Original', original)
+# cv2.imshow('Original', original)
 
-# Correct for camera distortion
-corrected = correct_image(original)
-# cv2.imwrite('corrected.jpg', corrected)
+def process_frame(frame):
+    global last_good
 
-# normalize brightness and contrast
-image = apply_CLAHE(corrected)
+    # Correct for camera distortion
+    corrected = correct_image(frame)
 
-# Transform it to birdseye
-image = transform2birdseye(image)
-# cv2.imwrite('birdseye.jpg', image)
+    # normalize brightness and contrast
+    image = apply_CLAHE(corrected)
 
-# find the beginning of the lines
-enhanced, last_good = find_line_starts(image)
-# cv2.imwrite('enhanced.jpg', enhanced)
-cv2.imshow('Enhanced back', enhanced)
-print('Lines start: {}'.format(last_good))
-left_start = last_good[0]
-right_start = last_good[1]
-walk_Y = 36
-half_walk = walk_Y // 2
-box_width = 200
-box_half = box_width // 2
-curY = enhanced.shape[0]
-minX = box_half # from the center of the box, don't go past the left edge of the image
-maxX = enhanced.shape[1] - minX # same, right edge
-curLeftX = int(max(left_start, minX)) # don't start out already past the left edge
-curRightX = int(min(right_start, maxX)) # same, right edge
-left_pts = []
-right_pts = []
-leftDeltaSteps = []
-rightDeltaSteps = []
+    # Transform it to birdseye
+    image = transform2birdseye(image)
 
-# Walk up the lines
-while curY >= walk_Y:
-    left_box = make_box(enhanced, walk_Y, box_width, curY, curLeftX)
-    right_box = make_box(enhanced, walk_Y, box_width, curY, curRightX)
-    cv2.imshow('left_box', left_box)
-    cv2.imshow('right_box', right_box)
+    # find the beginning of the lines
+    enhanced, last_good = find_line_starts(image, last_good)
+    # cv2.imshow('Enhanced back', enhanced)
+    # print('Lines start: {}'.format(last_good))
 
-    found_left = find_box_peak(left_box) # peak relative to box
-    if found_left is not None: # did we find a peak?
-        nextLeftX = int(max(found_left + curLeftX - box_half, minX)) # don't go past the left border
-        leftDeltaSteps.append(curLeftX - nextLeftX) # keep track of the deltas for averaging steps
-        curLeftX = nextLeftX
-    elif len(leftDeltaSteps) > 0:
-        # take a step in the average direction - we can lose dashed lines if we just go straight up
-        curLeftX = int(max(curLeftX - np.mean(leftDeltaSteps), minX))
+    # walk up the lines to find a series of points
+    left_Xpts, right_Xpts, Ypts = walk_lines(last_good, enhanced)
 
-    found_right = find_box_peak(right_box)
-    if found_right is not None:
-        nextRightX = int(min(found_right + curRightX - box_half, maxX))
-        rightDeltaSteps.append(curRightX - nextRightX)
-        curRightX = nextRightX
-    elif len(rightDeltaSteps) > 0:
-        curRightX = int(min(curRightX - np.mean(rightDeltaSteps), maxX))
-    
-    if curLeftX > minX:
-        left_pts.append([curLeftX, curY + half_walk]) # Y in middle, not top edge of box
-    elif found_left is not None:
-        # if the box is up against the left border, we still want to follow the line
-        left_pts.append([int(found_left), curY + half_walk])
-    else:
-        left_pts.append([curLeftX, curY + half_walk]) # Past minX, and curLeftX is already int
-    
-    if curRightX < maxX:
-        right_pts.append([curRightX, curY + half_walk])
-    elif found_right is not None:
-        right_pts.append([int(found_right), curY + half_walk])
-    else:
-        right_pts.append([curRightX, curY + half_walk])
+    # Fit a 2nd order function for each line
+    left_coef = np.polyfit(Ypts, left_Xpts, 2)
+    right_coef = np.polyfit(Ypts, right_Xpts, 2)
 
-    curY = curY - walk_Y
-    cv2.waitKey(0)  # DEBUG
+    # Get new lines from the fitted curve
+    Yarr = np.array(Ypts)
+    left_newXpts = (left_coef[0] * Yarr**2) + (left_coef[1] * Yarr) + left_coef[2]
+    right_newXpts = (right_coef[0] * Yarr**2) + (right_coef[1] * Yarr) + right_coef[2]
 
-# This is where you need to fit the curvature
+    # Create an image to draw the lines on
+    warp_zero = np.zeros_like(image).astype(np.uint8)
+
+    # Form polylines and polygon
+    left_newpts = [z for z in zip(left_newXpts, Ypts)]
+    left_newpts = [np.array(left_newpts, dtype=np.int32)]
+    right_newpts = [z for z in zip(right_newXpts, Ypts)]
+    right_newpts = [np.array(right_newpts, dtype=np.int32)]
+    poly_pts = np.vstack((left_newpts[0], right_newpts[0][::-1]))
+    cv2.fillPoly(warp_zero, np.int_([poly_pts]), (0,255,0))
+
+    # Draw the polylines and polygon
+    cv2.fillPoly(warp_zero, np.int_([poly_pts]), (0,255,0))
+    cv2.polylines(warp_zero, np.int_([left_newpts]), False, (255,0,0), thickness=30)
+    cv2.polylines(warp_zero, np.int_([right_newpts]), False, (0,0,255), thickness=30)
+
+    # Transform the drawn image back to normal from birdseye
+    P = Perspective()
+    normal = P.back2normal(warp_zero)
+
+    # Overlay the drawn image on the corrected camera image
+    result = cv2.addWeighted(corrected, 1, normal, 0.7, 0)
+
+    return result
 
 
+last_good = None
+# result = process_frame(original)
+# cv2.imshow('Result', result)
+# cv2.waitKey(0)
 
-# Let's suppose, as in the previous example, you have a warped binary 
-# image called warped, and you have fit the lines with a polynomial and 
-# have arrays called yvals, left_fitx and right_fitx, which represent 
-# the x and y pixel values of the lines. You can then project those 
-# lines onto the original image as follows:
-left_fitx = np.asarray([last_good[0], last_good[0]])
-right_fitx = np.asarray([last_good[1], last_good[1]])
-yvals = np.array([0, image.shape[0]])
+from moviepy.editor import VideoFileClip
 
-# Create an image to draw the lines on
-warp_zero = np.zeros_like(image).astype(np.uint8)
-# color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-
-# Recast the x and y points into usable format for cv2.fillPoly()
-pts_left = np.array([np.transpose(np.vstack([left_fitx, yvals]))])
-pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, yvals])))])
-pts = np.hstack((pts_left, pts_right))
-
-# Draw the lane onto the warped blank image
-cv2.fillPoly(warp_zero, np.int_([pts]), (0,255, 0))
-
-# Warp the blank back to original image space using inverse perspective matrix (Minv)
-# newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
-P = Perspective()
-normal = P.back2normal(warp_zero)
-
-# Combine the result with the original image
-result = cv2.addWeighted(corrected, 1, normal, 0.3, 0)
-
-cv2.imshow('Result', result)
-
-cv2.waitKey(0)
+clip1 = VideoFileClip("project_video.mp4")
+result_clip = clip1.fl_image(process_frame)
+result_clip.write_videofile('project_video_result.mp4', audio=False)

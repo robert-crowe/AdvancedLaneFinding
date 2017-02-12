@@ -71,8 +71,8 @@ def transform2birdseye(image):
     # Transform it to birdseye
     P = Perspective()
     birdseye = P.to_birdseye(image)
-    cv2.imshow('Birdseye view', birdseye)
-    print('birdseye shape: {}'.format(birdseye.shape))
+    # cv2.imshow('Birdseye view', birdseye)
+    # print('birdseye shape: {}'.format(birdseye.shape))
     return birdseye
 
 def correct_image(img):

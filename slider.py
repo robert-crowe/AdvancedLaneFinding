@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import find_peaks_cwt
 import math
+import cv2
 
 def histo(img):
     return np.sum(img, axis=0)
@@ -31,7 +32,6 @@ def moving_average(img, width=32):
     else:
         Mavg = cols # zeros
         return Mavg
-    
 
 def find_box_peak(img):
     avg_line_width_px = 25
@@ -51,3 +51,58 @@ def find_box_peak(img):
             return None 
         else:
             return mean_peaks
+
+def walk_lines(last_good, enhanced):
+    left_start = float(last_good[0])
+    right_start = float(last_good[1])
+    walk_Y = 36
+    half_walk = walk_Y // 2
+    box_width = 200
+    box_half = box_width // 2
+    curY = enhanced.shape[0]
+    minX = box_half # from the center of the box, don't go past the left edge of the image
+    maxX = enhanced.shape[1] - minX # same, right edge
+    curLeftX = float(max(left_start, minX)) # don't start out already past the left edge
+    curRightX = float(min(right_start, maxX)) # same, right edge
+    leftBoxCenter = curLeftX
+    rightBoxCenter = curRightX
+    left_Xpts = []
+    right_Xpts = []
+    Ypts = []
+    leftDeltaSteps = []
+    rightDeltaSteps = []
+
+    # Walk up the lines
+    while curY >= walk_Y:
+        left_box = make_box(enhanced, walk_Y, box_width, curY, leftBoxCenter)
+        right_box = make_box(enhanced, walk_Y, box_width, curY, rightBoxCenter)
+        # cv2.imshow('left_box', left_box)
+        # cv2.imshow('right_box', right_box)
+
+        found_left = find_box_peak(left_box) # peak relative to box
+        if found_left is not None: # did we find a peak?
+            nextLeftX = float(max(found_left + leftBoxCenter - box_half, minX)) # don't go past the left border
+            leftDeltaSteps.append(curLeftX - nextLeftX) # keep track of the deltas for averaging steps
+            curLeftX = nextLeftX
+        elif len(leftDeltaSteps) > 0:
+            # take a step in the average direction - we can lose dashed lines if we just go straight up
+            curLeftX = float(max(curLeftX - np.mean(leftDeltaSteps), 0))
+        leftBoxCenter = min(max(curLeftX, minX), maxX)
+
+        found_right = find_box_peak(right_box)
+        if found_right is not None:
+            nextRightX = float(min(found_right + rightBoxCenter - box_half, maxX))
+            rightDeltaSteps.append(curRightX - nextRightX)
+            curRightX = nextRightX
+        elif len(rightDeltaSteps) > 0:
+            curRightX = float(min(curRightX - np.mean(rightDeltaSteps), maxX))
+        rightBoxCenter = max(min(curRightX, maxX), minX)
+        
+        left_Xpts.append(curLeftX)
+        right_Xpts.append(curRightX)
+        Ypts.append(float(curY + half_walk)) # Y in middle, not top edge of box
+
+        curY = curY - walk_Y # take the next step
+        # cv2.waitKey(0)  # DEBUG
+
+    return left_Xpts, right_Xpts, Ypts
