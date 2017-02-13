@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from slider import moving_average
 
 # Edit this function to create your own pipeline.
-def enhance_lines(img, HLS_thresh=(170, 255)):
+def enhance_lines(img, gEnv, HLS_thresh=(170, 255)):
     """ Apply Color, Sobel, and Thresholds to Enhance Lines
 
     Apply color, Sobel, and gradient thresholds to enhance the lane lines in an RGB image 
@@ -20,6 +20,7 @@ def enhance_lines(img, HLS_thresh=(170, 255)):
     Returns:
         The transformed image (binary image)
     """
+
     # Convert to HSV color space and separate the channels
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV) # .astype(np.float)
     h_channel = hsv[:,:,0]
@@ -32,28 +33,49 @@ def enhance_lines(img, HLS_thresh=(170, 255)):
     low  = np.array([90, 85, 0])
     high = np.array([101, 255, 255])
     yellows = cv2.inRange(hsv, low, high)
-    # cv2.imshow('Yellows', yellows)
+    if gEnv['debug']:
+        cv2.imshow('Yellows', yellows)
 
     # Mask the whites
-    low  = np.array([0, 0, 200])
-    high = np.array([255, 25, 255])
-    whites = cv2.inRange(hsv, low, high)
-    # cv2.imshow('Whites', whites)
+    # low  = np.array([0, 0, 240])
+    # high = np.array([255, 16, 255])
+    dark_bkg_low  = np.array([0, 0, 216])  # very good on straights
+    dark_bkg_high = np.array([255, 255, 255])
+    light_bkg_low  = np.array([0, 0, 240]) # very good test1
+    light_bkg_high = np.array([255, 255, 255])
+    max_dark_bkg_sum = 9500000  # to detect when the dark thresholds are too low
+    
+    whites = cv2.inRange(hsv, dark_bkg_low, dark_bkg_high)
+    if gEnv['debug']:
+        cv2.imshow('Orig Whites', whites)
+    white_sum = np.sum(whites)
+    if gEnv['debug']:
+        print('Orig Whites = {}'.format(white_sum))
+
+    if white_sum > max_dark_bkg_sum: # we probably have a light background
+        whites = cv2.inRange(hsv, light_bkg_low, light_bkg_high)
+        if gEnv['debug']:
+            cv2.imshow('Corrected Whites', whites)
+        white_sum = np.sum(whites)
+        if gEnv['debug']:
+            print('Corrected Whites = {}'.format(white_sum))
 
     # Convert to HLS and threshold S
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    s_channel = hsv[:,:,2]
-    s_binary = np.zeros_like(s_channel)
-    s_binary[(s_channel >= HLS_thresh[0]) & (s_channel < HLS_thresh[1])] = 1
-    s_binary = np.asarray(s_binary * 255, dtype=np.uint8)
+    # hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+    # s_channel = hsv[:,:,2]
+    # s_binary = np.zeros_like(s_channel)
+    # s_binary[(s_channel >= HLS_thresh[0]) & (s_channel < HLS_thresh[1])] = 1
+    # s_binary = np.asarray(s_binary * 255, dtype=np.uint8)
     # cv2.imshow('s_binary', s_binary)
 
     # Combine the two binary thresholds
-    combined_binary = cv2.bitwise_or(yellows, cv2.bitwise_or(whites, s_binary))
+    # combined_binary = cv2.bitwise_or(yellows, cv2.bitwise_or(whites, s_binary))
+    combined_binary = cv2.bitwise_or(whites, yellows)
+    # cv2.imshow('Combined', combined_binary)
     
     return combined_binary
 
-def get_enhanced(image):
+def get_enhanced(image, gEnv):
     """ Enhance to find the lines
 
     Args:
@@ -63,7 +85,7 @@ def get_enhanced(image):
         image (image): The enhanced image
     """
     # Enhance the lines
-    image = enhance_lines(image, HLS_thresh=[200, 255])
+    image = enhance_lines(image, gEnv, HLS_thresh=[200, 255])
     # cv2.imshow('Enhanced', image)
     return image
 
