@@ -4,9 +4,26 @@ import math
 import cv2
 
 def histo(img):
+    """ Generate a histogram from a 2d black and white image. 
+
+    Args:
+        img (image): The input image
+
+    Returns:
+        histo (1d array): The histogram of the image
+    """
     return np.sum(img, axis=0)
 
 def half_img(img, window_height):
+    """ Get the bottom half of an image
+
+    Args:
+        img (image): The input image
+        window_height (int): The starting height of the image
+    
+    Returns:
+        img (image): The bottom half of the image
+    """
     half_height = np.uint16(window_height/2)
     end = img.shape[0]
     start = end - half_height
@@ -14,6 +31,18 @@ def half_img(img, window_height):
     return img[start:end,:]
 
 def make_box(img, H, W, Ybottom, Xcenter):
+    """ Make a sliding window box
+
+    Args:
+        img (image): The entire binary thresholded image
+        H (int): The desired height of the box
+        W (int): The desired width of the box
+        Ybottom (int): The Y coordinate of the bottom of the box
+        Xcenter (int): The X coordinate of the center of the box
+    
+    Returns:
+        img (image): The box
+    """
     Ybottom = np.uint16(Ybottom)
     Xstart = np.uint16(Xcenter - W // 2)
     Xend = np.uint16(Xstart + W)
@@ -21,6 +50,15 @@ def make_box(img, H, W, Ybottom, Xcenter):
     return img[Ytop:Ybottom, Xstart:Xend]
 
 def moving_average(img, width=32):
+    """ Calculate a moving average of a 1D array and scale
+
+    Args:
+        img (image): The 1d array
+        width (int, optional kwarg): The width of the interval
+    
+    Returns:
+        Mavg (1d array): The moving average of the input array, scaled to 0.0 to 1.0
+    """
     # adapted from http://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
     cols = np.mean(img[:,:], axis=0)
     Mavg = np.cumsum(cols, dtype=float)
@@ -37,6 +75,14 @@ def moving_average(img, width=32):
         return Mavg
 
 def find_box_peak(img):
+    """ Find the strongest signal in a sliding window, which should correspond to a line if one is present
+
+    Args:
+        img (image): The sliding window
+    
+    Returns:
+        mean_peaks (int): The X location of the strongest signal
+    """
     avg_line_width_px = 25
     range_line_widths = [100]
     max_dist = [800]
@@ -59,6 +105,20 @@ def find_box_peak(img):
             return mean_peaks
 
 def walk_lines(enhanced, gEnv):
+    """ Walk up a suspected lane line from bottom to top, using a sliding window to locate the line
+
+    'Because you're mine, I walk the line'
+
+    Args:
+        enhanced (image): A binary thresholded image of a view of the lane from above
+        gEnv (dict): The global configuration and state
+    
+    Returns:
+        left_Xpts (array): The X coordinates for the left line
+        right_Xpts (array): The X coordinates for the right line
+        Ypts (array): The Y coordinates for both lines (they're the same for both)
+        data_good (bool): Did we find decent enough data?
+    """
     left_start = float(gEnv['prev_line_ends'][0])
     right_start = float(gEnv['prev_line_ends'][1])
     left_coef = gEnv['left_prev_coef']

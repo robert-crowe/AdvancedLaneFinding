@@ -31,7 +31,7 @@ fname = 'harder5.jpg'
 original = cv2.imread('test_images/{}'.format(fname))
 
 gEnv = {
-    'debug':True,
+    'debug':False,
     'left_prev_coef':None,
     'right_prev_coef':None,
     'prev_line_ends':None,
@@ -44,7 +44,19 @@ gEnv = {
 if gEnv['debug']:
     cv2.imshow('Original', original)
 
+
 def process_frame(frame):
+    """ Process a single image or a frame from a video to find the lane lines
+
+    This is the main entry point for this code.  It can be used in debug mode (see gEnv above) to process a
+    single image, but is designed to operate with moviepy to process videos.
+
+    Args:
+        frame (image): The input image
+
+    Returns:
+        result (image): The output image with the lane and lines overlaid, along with curvature and car position.
+    """
     global gEnv
 
     gEnv['frame_count'] += 1 # keep track of frames to get ratio of good ones
@@ -58,13 +70,11 @@ def process_frame(frame):
     image = transform2birdseye(image)
     if gEnv['debug']:
         cv2.imshow('Birdseye', image)
-        cv2.imwrite('birdseye.jpg', image)
     
     # Enhance the image, and if necessary find the starts of the lines
     enhanced, gEnv['prev_line_ends'] = find_line_starts(image, gEnv)
     if gEnv['debug']:
         cv2.imshow('Enhanced', enhanced)
-        cv2.imwrite('output_images/bad_bird.jpg', enhanced)
 
     # walk up the lines to find a series of points
     left_Xpts, right_Xpts, Ypts, data_good = walk_lines(enhanced, gEnv)
