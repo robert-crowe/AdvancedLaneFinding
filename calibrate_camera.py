@@ -5,10 +5,10 @@ coefficients in a Pickle - ./camera_pickle.p
 
 It tests using one of the calibration files and saves the results in two test files:
 
-1. camera_cal/test_undist.jpg is an undistorted version from the original matrix, testing if the 
+1. output_images/test_undist.jpg is an undistorted version from the original matrix, testing if the 
    camera was calibrated correctly
 
-2. After reloading the Pickle, camera_cal/test_reload_undist.jpg is created.  It should match #1. 
+2. After reloading the Pickle, output_images/test_reload_undist.jpg is created.  It should match #1. 
    This is testing to make sure that the Pickle was pickled correctly.  Nothing worse than a faulty 
    pickle.
 """
@@ -71,10 +71,10 @@ images = glob.glob('camera_cal/calibration*.jpg')
 
 # Collect object and image points
 nx, ny = 9, 6
-objpoints, imgpoints = collect_points(images, nx, ny, show=True)
+objpoints, imgpoints = collect_points(images, nx, ny, show=False)
 
 # Get raw image for testing
-test_img_fname = 'camera_cal/calibration2.jpg'
+test_img_fname = 'camera_cal/calibration3.jpg'
 img = cv2.imread(test_img_fname)
 img_size = (img.shape[1], img.shape[0])
 
@@ -83,7 +83,7 @@ ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_siz
 
 # Test the calibration
 dst = cv2.undistort(img, mtx, dist, None, mtx)
-cv2.imwrite('camera_cal/test_undist.jpg', dst)
+cv2.imwrite('output_images/test_undist.jpg', dst)
 
 # Save the camera calibration result for later use (we won't worry about rvecs / tvecs)
 dist_pickle = {}
@@ -100,4 +100,4 @@ dist_reload = dist_unpickled["dist"]
 # Test the reloaded pickle
 img_test = cv2.imread(test_img_fname)
 dst_test = cv2.undistort(img_test, mtx_reload, dist_reload, None, mtx_reload)
-cv2.imwrite('camera_cal/test_reload_undist.jpg', dst_test)
+cv2.imwrite('output_images/test_reload_undist.jpg', dst_test)

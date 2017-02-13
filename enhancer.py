@@ -48,6 +48,7 @@ def enhance_lines(img, gEnv, HLS_thresh=(170, 255)):
     whites = cv2.inRange(hsv, dark_bkg_low, dark_bkg_high)
     if gEnv['debug']:
         cv2.imshow('Orig Whites', whites)
+        cv2.imwrite('output_images/noisy_whites.jpg', whites)
     white_sum = np.sum(whites)
     if gEnv['debug']:
         print('Orig Whites = {}'.format(white_sum))
@@ -56,6 +57,7 @@ def enhance_lines(img, gEnv, HLS_thresh=(170, 255)):
         whites = cv2.inRange(hsv, light_bkg_low, light_bkg_high)
         if gEnv['debug']:
             cv2.imshow('Corrected Whites', whites)
+            cv2.imwrite('output_images/corrected_whites.jpg', whites)
         white_sum = np.sum(whites)
         if gEnv['debug']:
             print('Corrected Whites = {}'.format(white_sum))

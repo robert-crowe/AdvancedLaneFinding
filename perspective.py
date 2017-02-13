@@ -3,12 +3,8 @@ import cv2
 
 class Perspective:
     """ Class for transforming to and from a birdseye view
-
-    Constructor Args:
-        offset (kwarg int, optional): The pixels to offset the image from the left and right margin
     """
-    def __init__(self, offset=300):
-        self.offset = offset # X offset for dst points
+    def __init__(self):
         self.source = self.getSource()
     
     def getSource(self):
@@ -20,8 +16,10 @@ class Perspective:
         # src = np.float32([(624,432), (654,432), (1039,674), (269,674)])
         # src = np.float32([(522,502), (766,502), (1039,674), (269,674)])
         # src = np.float32([(601,445), (673,445), (1022,673), (261,673)])
-        src = np.float32([[0, 720], [1280, 720], [775, 480], [507, 480]])
         # src = np.float32([[0, 720], [1280, 720], [703, 448], [576, 448]])
+
+        # src = np.float32([[0, 720], [1080, 720], [1075, 580], [807, 480]]) # alternate for curve
+        src = np.float32([[0, 720], [1280, 720], [775, 480], [507, 480]])
         return src
 
     def getDestination(self, img_size):
@@ -33,9 +31,6 @@ class Perspective:
         Returns:
             (list of 2-tuples, float32): The list of registration points, clockwise from upper left
         """
-        # dst = np.float32([[self.offset, 0], [img_size[0]-self.offset, 0], 
-        #     [img_size[0]-self.offset, img_size[1]], [self.offset, img_size[1]]])
-
         dst = np.float32([[ 0, 720], [ 1280, 720], [ 1280, 0], [0, 0]])
         return dst
         

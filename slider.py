@@ -58,9 +58,11 @@ def find_box_peak(img):
         else:
             return mean_peaks
 
-def walk_lines(last_good, enhanced, left_coef, right_coef):
-    left_start = float(last_good[0])
-    right_start = float(last_good[1])
+def walk_lines(enhanced, gEnv):
+    left_start = float(gEnv['prev_line_ends'][0])
+    right_start = float(gEnv['prev_line_ends'][1])
+    left_coef = gEnv['left_prev_coef']
+    right_coef = gEnv['right_prev_coef']
     walk_Y = 36
     half_walk = walk_Y // 2
     box_width = 200
@@ -95,7 +97,7 @@ def walk_lines(last_good, enhanced, left_coef, right_coef):
             nextLeftX = float(max(found_left + leftBoxCenter - box_half, minX)) # don't go past the left border
             leftDeltaSteps.append(curLeftX - nextLeftX) # keep track of the deltas for averaging steps
             curLeftX = nextLeftX
-        elif left_coef is not None: # if we don't see a line, use the previous coefficients 
+        elif gEnv['prev_data_good'] and left_coef is not None: # if we don't see a line, use the previous coefficients 
             curLeftX = (left_coef[0] * curY**2) + (left_coef[1] * curY) + left_coef[2]
         elif len(leftDeltaSteps) > 0: # we don't have previous coefficients, so use the recent trend
             # take a step in the average direction - we can lose dashed lines if we just go straight up
@@ -108,7 +110,7 @@ def walk_lines(last_good, enhanced, left_coef, right_coef):
             nextRightX = float(min(found_right + rightBoxCenter - box_half, maxX))
             rightDeltaSteps.append(curRightX - nextRightX)
             curRightX = nextRightX
-        elif right_coef is not None:
+        elif gEnv['prev_data_good'] and right_coef is not None:
             curRightX = (right_coef[0] * curY**2) + (right_coef[1] * curY) + right_coef[2]
         elif len(rightDeltaSteps) > 0:
             curRightX = float(min(curRightX - np.mean(rightDeltaSteps), maxX))

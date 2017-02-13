@@ -27,17 +27,18 @@ harder5: Not bad
 """
 
 # Read in an image
-fname = 'challenge1.jpg'
+fname = 'harder5.jpg'
 original = cv2.imread('test_images/{}'.format(fname))
 
 gEnv = {
-    'debug':False,
+    'debug':True,
     'left_prev_coef':None,
     'right_prev_coef':None,
     'prev_line_ends':None,
     'frame_count':0,
     'good_frames':0,
-    'prev_data_good':False
+    'prev_data_good':False,
+    'bad_frame_count':0
 }
 
 if gEnv['debug']:
@@ -57,18 +58,16 @@ def process_frame(frame):
     image = transform2birdseye(image)
     if gEnv['debug']:
         cv2.imshow('Birdseye', image)
-
-    # Should we use the line starts from the ends of the last walk?
-    if gEnv['prev_data_good'] is False:
-        gEnv['prev_line_ends'] = None
+        cv2.imwrite('birdseye.jpg', image)
     
     # Enhance the image, and if necessary find the starts of the lines
     enhanced, gEnv['prev_line_ends'] = find_line_starts(image, gEnv)
-    # cv2.imshow('Enhanced back', enhanced)
-    # print('Lines start: {}'.format(last_good))
+    if gEnv['debug']:
+        cv2.imshow('Enhanced', enhanced)
+        cv2.imwrite('output_images/bad_bird.jpg', enhanced)
 
     # walk up the lines to find a series of points
-    left_Xpts, right_Xpts, Ypts, data_good = walk_lines(gEnv['prev_line_ends'], enhanced, gEnv['left_prev_coef'], gEnv['right_prev_coef'])
+    left_Xpts, right_Xpts, Ypts, data_good = walk_lines(enhanced, gEnv)
 
     # Fit a 2nd order function for each line
     left_coef = np.polyfit(Ypts, left_Xpts, 2)
@@ -80,12 +79,20 @@ def process_frame(frame):
     right_newXpts = (right_coef[0] * Yarr**2) + (right_coef[1] * Yarr) + right_coef[2]
 
     # was the walk data good enough to keep?
-    gEnv['prev_data_good'] = data_good
-    if data_good: 
-        gEnv['left_prev_coef'] = left_coef
+    max_bad_frames = 25  # don't reset on the first bad frame, wait a second
+    if data_good:
+        gEnv['bad_frame_count'] = 0
+        gEnv['left_prev_coef'] = left_coef # only save coef if data was actually good, regardless of count
         gEnv['right_prev_coef'] = right_coef
         gEnv['prev_line_ends'] = [left_newXpts[len(left_newXpts) - 1], right_newXpts[len(right_newXpts) - 1]]
         gEnv['good_frames'] += 1
+    else:
+        gEnv['bad_frame_count'] += 1
+
+    if gEnv['bad_frame_count'] > max_bad_frames:
+        gEnv['prev_data_good'] = False
+    else:
+        gEnv['prev_data_good'] = True
 
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(image).astype(np.uint8)
@@ -118,8 +125,6 @@ def process_frame(frame):
     else:
         position_msg = 'Car is {:.2f} meters to the left of center'.format(abs(offcenter_Meters))
     
-    # print(position_msg)
-
     # Define conversions in x and y from pixels space to meters
     y_eval = np.max(Ypts)
     ym_per_pix = 30/720 # meters per pixel in y dimension
@@ -140,9 +145,9 @@ def process_frame(frame):
     cv2.putText(result, position_msg, (10, 20), cv2.FONT_HERSHEY_PLAIN, 1.5, (0,0,0), 2)
     cv2.putText(result, curvature_msg, (10, 50), cv2.FONT_HERSHEY_PLAIN, 1.5, (0,0,0), 2)
     if data_good:
-        cv2.putText(result, 'GOOD', (10, 80), cv2.FONT_HERSHEY_PLAIN, 1.5, (0,255,0), 2)
+        cv2.putText(result, 'Good Data', (10, 80), cv2.FONT_HERSHEY_PLAIN, 1.5, (0,255,0), 2)
     else:
-        cv2.putText(result, 'BAD', (10, 80), cv2.FONT_HERSHEY_PLAIN, 1.5, (255,0,0), 2)
+        cv2.putText(result, 'Bad Data', (10, 80), cv2.FONT_HERSHEY_PLAIN, 1.5, (255,0,0), 2)
 
     return result
 
